@@ -4,6 +4,8 @@ import sys
 import numpy as np
 import torch
 from torch.utils.data import Dataset, DataLoader
+from torch.utils.data.sampler import SubsetRandomSampler
+from torchvision import datasets, transforms
 
 # Ignore warnings
 import warnings
@@ -39,9 +41,32 @@ class DisentangledSpritesDataset(Dataset):
 
     def __getitem__(self, idx):
         sample = self.imgs[idx].astype(np.float32)
-        sample = sample.reshape(1, sample.shape[0], sample.shape[1])
-
+        # sample = sample.reshape(1, sample.shape[0], sample.shape[1])
         if self.transform:
             sample = self.transform(sample)
-
         return sample, []
+
+
+def load_dsprites(dir='/home/genyrosk/datasets',
+                val_split=0.9, shuffle=True, seed=42, batch_size=64):
+    # img_size = 64
+    path = os.path.join(dir, 'dsprites-dataset')
+    dataset = DisentangledSpritesDataset(path, transform=transforms.ToTensor())
+
+    # Create data indices for training and validation splits:
+    dataset_size = len(dataset)
+    indices = list(range(dataset_size))
+    split = int(np.floor(val_split * dataset_size))
+    if shuffle:
+        np.random.seed(seed)
+        np.random.shuffle(indices)
+    train_indices, val_indices = indices[split:], indices[:split]
+
+    # Create data samplers and loaders:
+    train_sampler = SubsetRandomSampler(train_indices)
+    val_sampler = SubsetRandomSampler(val_indices)
+
+    train_loader = DataLoader(dataset, batch_size=batch_size, sampler=train_sampler)
+    val_loader = DataLoader(dataset, batch_size=batch_size, sampler=val_sampler)
+
+    return train_loader, val_loader

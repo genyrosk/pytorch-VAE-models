@@ -4,15 +4,14 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from utils import Flatten, UnFlatten, Interpolate
+from utils import Flatten, UnFlatten
 
-class VAE_Upsampled(nn.Module):
+class VAE_Conv(nn.Module):
     """
-    https://distill.pub/2016/deconv-checkerboard/
+    https://github.com/vdumoulin/conv_arithmetic
     """
-
-    def __init__(self, z_dim=20, img_channels=1, img_size=28):
-        super(VAE_Upsampled, self).__init__()
+    def __init__(self, z_dim=30, img_channels=1, img_size=28):
+        super(VAE_Conv, self).__init__()
 
         ## encoder
         self.encoder = nn.Sequential(
@@ -36,17 +35,14 @@ class VAE_Upsampled(nn.Module):
 
         ## decoder
         self.fc2 = nn.Linear(z_dim, h_dim)
-        n_channels = encoder_params[-1]['out_channels']
         self.decoder = nn.Sequential(
-            UnFlatten(n_channels),
-            Interpolate(scale_factor=(2,2), mode='bilinear'),
-            nn.Conv2d(16, 16, kernel_size=5, stride=1, padding=2),
+            UnFlatten(32),
+            nn.ConvTranspose2d(32, 16, (6,6), stride=2, padding=2),
             nn.ReLU(),
-            Interpolate(scale_factor=(2,2), mode='bilinear'),
-            nn.Conv2d(16, 16, kernel_size=5, stride=1, padding=2),
+            nn.ConvTranspose2d(16, 8, (6,6), stride=2, padding=2),
             nn.ReLU(),
-            nn.Conv2d(16, 1, kernel_size=5, stride=1, padding=2),
-            nn.Sigmoid(),
+            nn.ConvTranspose2d(8, 1, (5,5), stride=1, padding=2),
+            nn.Sigmoid()
         )
 
     def encode(self, x):
@@ -82,5 +78,5 @@ class VAE_Upsampled(nn.Module):
     @property
     def total_parameters(self):
         return sum([torch.numel(p) for p in self.parameters()])
-
-# print(VAE_Upsampled().total_parameters)
+#
+# print(VAE_Conv().total_parameters)

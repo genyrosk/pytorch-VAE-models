@@ -7,35 +7,15 @@ import torch
 import torch.utils.data
 from torch import nn, optim
 from torch.nn import functional as F
-from torch.utils.data.sampler import SubsetRandomSampler
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
-import matplotlib.pyplot as plt
+# import matplotlib.pyplot as plt
 
-from models import VAE_Simple, VAE_Conv, VAE_Upsampled, VAE_SuperResolution
-from data import DisentangledSpritesDataset
+from cli import parser
 
-parser = argparse.ArgumentParser(description='beta-VAE MNIST / dSprites')
-parser.add_argument('model_name', type=str, default='simple', metavar='MODEL',
-                    help='model name (default: simple)', nargs='?')
-parser.add_argument('--data', type=str, default='MNIST', metavar='D',
-                    help='dataset name (default: MNIST, also: dSprites)')
-parser.add_argument('--z-dim', type=int, default=15, metavar='Z',
-                    help='number of latent variables z (default: 15)')
-parser.add_argument('--beta', type=int, default=5.0, metavar='B',
-                    help='regularisation coefficient * the KLD (default: 5.0)')
-parser.add_argument('--batch-size', type=int, default=128, metavar='N',
-                    help='input batch size for training (default: 128)')
-parser.add_argument('--epochs', type=int, default=10, metavar='N',
-                    help='number of epochs to train (default: 10)')
-parser.add_argument('--no-cuda', action='store_true', default=False,
-                    help='enables CUDA training')
-parser.add_argument('--seed', type=int, default=1, metavar='S',
-                    help='random seed (default: 1)')
-parser.add_argument('--log-interval', type=int, default=100, metavar='N',
-                    help='how many batches to wait before logging training status')
-
+#
 # Parse args
+#
 args = parser.parse_args()
 torch.manual_seed(args.seed)
 args.cuda = not args.no_cuda and torch.cuda.is_available()
@@ -44,14 +24,9 @@ print('Arguments:')
 for arg, val in args._get_kwargs():
     print(f'    {arg:14s} {val}')
 
-# select model
-VAE_models = {
-    'simple': VAE_Simple,
-    'conv': VAE_Conv,
-    'upsampled': VAE_Upsampled,
-    'super_resolution': VAE_SuperResolution
-}
-VAE_model = VAE_models[args.model_name]
+#
+# Create directory where to save the results
+#
 dirName = f'results_{args.data}_{args.model_name}_zdim-{args.z_dim}_beta-{args.beta}'
 if not os.path.exists(dirName):
     os.mkdir(dirName)
@@ -59,55 +34,38 @@ if not os.path.exists(dirName):
 else:
     print(f'Directory {dirName} already exists \n')
 
-# Load MNIST dataset
+#
+# Load data
+#
 if args.data == 'MNIST':
+    from mnist_models import models
+    from data_mnist import load_mnist
     img_size = 28
-    train_loader = torch.utils.data.DataLoader(
-            datasets.MNIST('../data', train=True, download=True,
-                transform=transforms.ToTensor()
-            ), batch_size=args.batch_size, shuffle=True)
-    test_loader = torch.utils.data.DataLoader(
-            datasets.MNIST('../data', train=False,
-                transform=transforms.ToTensor()
-            ), batch_size=args.batch_size, shuffle=True)
-# Load dSprites dataset
+    VAE_model = models[args.model_name]
+    train_loader, test_loader = load_mnist(batch_size=args.batch_size)
+
 elif args.data == 'dSprites':
+    from mnist_models import models
+    from data_dsprites import load_dsprites
     img_size = 64
-    dataset = DisentangledSpritesDataset('/home/genyrosk/datasets/dsprites-dataset')
-    validation_split = .1
-    shuffle_dataset = True
-    random_seed= 42
-
-    # Creating data indices for training and validation splits:
-    dataset_size = len(dataset)
-    indices = list(range(dataset_size))
-    split = int(np.floor(validation_split * dataset_size))
-    if shuffle_dataset :
-        np.random.seed(random_seed)
-        np.random.shuffle(indices)
-    train_indices, test_indices = indices[split:], indices[:split]
-
-    # Creating data samplers and loaders:
-    train_sampler = SubsetRandomSampler(train_indices)
-    test_sampler = SubsetRandomSampler(test_indices)
-
-    train_loader = torch.utils.data.DataLoader(dataset,
-                        batch_size=args.batch_size, sampler=train_sampler)
-    test_loader = torch.utils.data.DataLoader(dataset,
-                        batch_size=args.batch_size, sampler=test_sampler)
+    VAE_model = models[args.model_name]
+    train_loader, test_loader = load_dsprites(dir='/home/genyrosk/datasets',
+                                    val_split=0.1, seed=args.seed,
+                                    batch_size=args.batch_size)
 else:
     raise Exception('Dataset not found. Try: MNIST, dSprites')
 
+#
 # model + optimizer + learning rate
+#
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-model = VAE_model(z_dim=args.z_dim, img_size=64).to(device)
+model = VAE_model(z_dim=args.z_dim, img_size=img_size).to(device)
 optimizer = optim.Adam(model.parameters(), lr=1e-3)
-# ReduceLROnPlateau, StepLR
 # scheduler = optim.lr_scheduler.StepLR(optimizer, 1, gamma=0.3)
-scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.97)
 # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
 #                             mode='min', factor=0.1, patience=2,
 #                             verbose=True)
+scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.97)
 loss_function = VAE_model.loss_function
 
 print(f'Total parameters: {model.total_parameters}\n')
@@ -134,7 +92,7 @@ def train(epoch):
         # update weights
         optimizer.step()
 
-        if batch_idx % args.log_interval == 0:
+        if batch_idx % args.log_interval == 0 and batch_idx != 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
                 epoch, batch_idx * len(data), len(train_loader.dataset),
                 100. * batch_idx / len(train_loader),
@@ -182,7 +140,9 @@ for epoch in range(1, args.epochs + 1):
         save_image(sample.view(64, 1, img_size, img_size),
                    f'{dirName}/sample_{str(epoch)}.png')
 
+#
 # save model
+#
 checkpoint = {'model': model,
               'state_dict': model.state_dict(),
               'optimizer' : optimizer.state_dict()}
