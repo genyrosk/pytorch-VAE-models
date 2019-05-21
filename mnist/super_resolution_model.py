@@ -4,27 +4,34 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from utils import Flatten, UnFlatten
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
 
-class VAE_Conv(nn.Module):
+class UnFlatten(nn.Module):
+    def __init__(self, n_channels):
+        super(UnFlatten, self).__init__()
+        self.n_channels = n_channels
+    def forward(self, input):
+        size = int((input.size(1) // self.n_channels)**0.5)
+        return input.view(input.size(0), self.n_channels, size, size)
+
+class VAE_SuperResolution(nn.Module):
     """
-    https://github.com/vdumoulin/conv_arithmetic
+    https://distill.pub/2016/deconv-checkerboard/
     """
-    def __init__(self, z_dim=30, img_channels=1, img_size=64):
-        super(VAE_Conv, self).__init__()
+
+    def __init__(self, z_dim=20, img_channels=1, img_size=28):
+        super(VAE_SuperResolution, self).__init__()
 
         ## encoder
         self.encoder = nn.Sequential(
-            nn.Conv2d(img_channels, 8, (3,3), stride=1, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(8, 16, (4,4), stride=2, padding=1),
-            nn.ReLU(),
-            nn.Conv2d(16, 32, (5,5), stride=2, padding=2),
-            nn.ReLU(),
-            nn.Conv2d(32, 32, (5,5), stride=2, padding=2),
-            nn.ReLU(),
-            nn.Conv2d(64, 64, (5,5), stride=2, padding=2),
-            nn.ReLU(),
+            nn.Conv2d(img_channels, 8, (3,3), stride=(1,1), padding=1),
+            nn.ELU(),
+            nn.Conv2d(8, 16, (4,4), stride=(2,2), padding=1),
+            nn.ELU(),
+            nn.Conv2d(16, 32, (5,5), stride=(2,2), padding=2),
+            nn.ELU(),
             Flatten()
         )
 
@@ -33,22 +40,20 @@ class VAE_Conv(nn.Module):
         h_dim = self.encoder(demo_input).shape[1]
         print('h_dim', h_dim)
         ## map to latent z
-        # h_dim = convnet_to_dense_size(img_size, encoder_params)
         self.fc11 = nn.Linear(h_dim, z_dim)
         self.fc12 = nn.Linear(h_dim, z_dim)
 
         ## decoder
         self.fc2 = nn.Linear(z_dim, h_dim)
-        n_channels = 64
         self.decoder = nn.Sequential(
-            UnFlatten(n_channels),
-            nn.ConvTranspose2d(64, 32, (4,4), stride=2, padding=1),
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, 32, (5,5), stride=2, padding=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(32, 16, (6,6), stride=2, padding=2),
-            nn.ReLU(),
-            nn.ConvTranspose2d(16, 1, (5,5), stride=1, padding=2),
+            UnFlatten(32),
+            nn.Conv2d(32, 32, (5,5), (1,1), padding=2),
+            nn.ELU(),
+            nn.PixelShuffle(upscale_factor=2),
+            nn.Conv2d(8, 32, (5,5), (1,1), padding=2),
+            nn.ELU(),
+            nn.PixelShuffle(upscale_factor=2),
+            nn.Conv2d(8, 1, (5,5), (1,1), padding=2),
             nn.Sigmoid()
         )
 
@@ -71,7 +76,7 @@ class VAE_Conv(nn.Module):
         return self.decode(z), mu, logvar
 
     @staticmethod
-    def loss_function(recon_x, x, mu, logvar, beta=5.0):
+    def loss_function(recon_x, x, mu, logvar, beta=4.0):
         """Reconstruction + KL divergence losses summed over all elements (of a batch)
             see Appendix B from VAE paper:
             Kingma and Welling. Auto-Encoding Variational Bayes. ICLR, 2014
@@ -85,5 +90,5 @@ class VAE_Conv(nn.Module):
     @property
     def total_parameters(self):
         return sum([torch.numel(p) for p in self.parameters()])
-#
-# print(VAE_Conv().total_parameters)
+
+# print(VAE_SuperResolution().total_parameters)

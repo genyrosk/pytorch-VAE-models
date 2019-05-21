@@ -5,7 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from mnist_models import VAE_SuperResolution
+from dsprites import VAE_SuperResolution
 
 class Flatten(nn.Module):
     def forward(self, input):
@@ -34,7 +34,17 @@ class Interpolate(nn.Module):
         return y
 
 
-# v = VAE_SuperResolution(z_dim=20, img_channels=1, img_size=28)
+x = torch.zeros(128,1, 64,64)
+v = VAE_SuperResolution(z_dim=20, img_channels=1, img_size=64)
+s = v.encode(x)[0]
+print(s.shape)
+y = v.forward(x)[0]
+print(y.shape)
+# sys.exit()
+print('#########################')
+
+
+
 x = torch.zeros(128,1, 64,64)
 print(x.shape)
 
@@ -60,7 +70,7 @@ x = d(x)
 print(x.shape)
 
 d = nn.Sequential(
-    nn.Conv2d(32, 64, (5,5), stride=(1,1), padding=2),
+    nn.Conv2d(32, 64, (5,5), stride=(2,2), padding=2),
     nn.ELU()
 )
 x = d(x)
@@ -70,46 +80,47 @@ d = Flatten()
 x = d(x)
 print(x.shape)
 
-# s = v.encode(input)[0].shape
-# print(s)
-
+################################################################
 d = UnFlatten(64)
 x = d(x)
 print(x.shape)
 
+# d = nn.PixelShuffle(upscale_factor=2)
+# x = d(x)
+# print(x.shape)
 
 d = nn.Sequential(
-nn.Conv2d(64, 64, (5,5), stride=1, padding=2),
+nn.ConvTranspose2d(64, 32, (6,6), stride=2, padding=2),
 nn.ELU())
 x = d(x)
 print(x.shape)
 
-d = nn.PixelShuffle(upscale_factor=2)
-x = d(x)
-print(x.shape)
+# d = nn.PixelShuffle(upscale_factor=2)
+# x = d(x)
+# print(x.shape)
 
 d = nn.Sequential(
-nn.Conv2d(16, 64, (5,5), stride=1, padding=2),
+nn.ConvTranspose2d(32, 16, (6,6), stride=2, padding=2),
 nn.ELU())
 x = d(x)
 print(x.shape)
 
-d = nn.PixelShuffle(upscale_factor=2)
-x = d(x)
-print(x.shape)
+# d = nn.PixelShuffle(upscale_factor=2)
+# x = d(x)
+# print(x.shape)
 
 d = nn.Sequential(
-nn.Conv2d(16, 64, (5,5), stride=1, padding=2),
+nn.ConvTranspose2d(16, 8, (6,6), stride=2, padding=2),
 nn.ELU())
 x = d(x)
 print(x.shape)
 
-d = nn.PixelShuffle(upscale_factor=2)
-x = d(x)
-print(x.shape)
+# d = nn.PixelShuffle(upscale_factor=2)
+# x = d(x)
+# print(x.shape)
 
 d = nn.Sequential(
-nn.Conv2d(16, 64, (5,5), stride=1, padding=2),
-nn.ReLU())
+nn.ConvTranspose2d(8, 1, (6,6), stride=2, padding=2),
+nn.Sigmoid())
 x = d(x)
 print(x.shape)

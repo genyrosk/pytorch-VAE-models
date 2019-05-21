@@ -38,15 +38,13 @@ else:
 # Load data
 #
 if args.data == 'MNIST':
-    from mnist_models import models
-    from data_mnist import load_mnist
+    from mnist import load_mnist, models
     img_size = 28
     VAE_model = models[args.model_name]
     train_loader, test_loader = load_mnist(batch_size=args.batch_size)
 
 elif args.data == 'dSprites':
-    from mnist_models import models
-    from data_dsprites import load_dsprites
+    from dsprites import load_dsprites, models
     img_size = 64
     VAE_model = models[args.model_name]
     train_loader, test_loader = load_dsprites(dir='/home/genyrosk/datasets',

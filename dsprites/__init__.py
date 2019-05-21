@@ -1,3 +1,4 @@
+from .data_dsprites import load_dsprites
 from .dense_model import VAE_Simple
 from .conv_model import VAE_Conv
 from .upsampled_model import VAE_Upsampled

@@ -5,7 +5,6 @@ import numpy as np
 from torch.utils.data import DataLoader
 from torchvision import datasets, transforms
 
-
 def load_mnist(shuffle=True, batch_size=64):
     # img_size = 28
     train_loader = DataLoader(

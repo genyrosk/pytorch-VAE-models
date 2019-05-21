@@ -4,7 +4,17 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
-from utils import Flatten, UnFlatten
+class Flatten(nn.Module):
+    def forward(self, input):
+        return input.view(input.size(0), -1)
+
+class UnFlatten(nn.Module):
+    def __init__(self, n_channels):
+        super(UnFlatten, self).__init__()
+        self.n_channels = n_channels
+    def forward(self, input):
+        size = int((input.size(1) // self.n_channels)**0.5)
+        return input.view(input.size(0), self.n_channels, size, size)
 
 class VAE_SuperResolution(nn.Module):
     """
@@ -37,11 +47,10 @@ class VAE_SuperResolution(nn.Module):
 
         ## decoder
         self.fc2 = nn.Linear(z_dim, h_dim)
-        n_channels = 64
-        print('n_channels', n_channels)
         self.decoder = nn.Sequential(
-            UnFlatten(n_channels),
-            nn.Conv2d(64, 64, (5,5), (1,1), padding=2),
+            UnFlatten(64),
+            nn.PixelShuffle(upscale_factor=2),
+            nn.Conv2d(16, 64, (5,5), (1,1), padding=2),
             nn.ELU(),
             nn.PixelShuffle(upscale_factor=2),
             nn.Conv2d(16, 64, (5,5), (1,1), padding=2),
