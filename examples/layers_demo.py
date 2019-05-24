@@ -5,6 +5,7 @@ import torch
 from torch import nn
 from torch.nn import functional as F
 
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 from dsprites import VAE_SuperResolution
 
 class Flatten(nn.Module):

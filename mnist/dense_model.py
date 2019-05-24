@@ -43,7 +43,7 @@ class VAE_Simple(nn.Module):
             https://arxiv.org/abs/1312.6114
             KLD = 0.5 * sum(1 + log(sigma^2) - mu^2 - sigma^2)
         """
-        x_flat = x.view(-1, x.shape[0]*x.shape[1])
+        x_flat = x.view(-1, x.shape[2]*x.shape[3])
         BCE = F.binary_cross_entropy(recon_x, x_flat, reduction='sum')
         KLD = -0.5 * torch.sum(1 + logvar - mu.pow(2) - logvar.exp())
         return BCE + beta * KLD

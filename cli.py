@@ -63,3 +63,9 @@ parser.add_argument(
     metavar='N',
     help='how many batches to wait before logging training status'
 )
+parser.add_argument(
+    '--tensorboard',
+    action='store_true',
+    default=False,
+    help='plots losses with tensorboard (default: False), to view run `$ tensorboard --logdir runs`'
+)

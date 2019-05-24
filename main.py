@@ -9,9 +9,11 @@ from torch import nn, optim
 from torch.nn import functional as F
 from torchvision import datasets, transforms
 from torchvision.utils import save_image
+from tensorboardX import SummaryWriter
 # import matplotlib.pyplot as plt
 
 from cli import parser
+from loss_plot import LossPlot
 
 #
 # Parse args
@@ -37,13 +39,13 @@ else:
 #
 # Load data
 #
-if args.data == 'MNIST':
+if args.data.lower() == 'mnist':
     from mnist import load_mnist, models
     img_size = 28
     VAE_model = models[args.model_name]
     train_loader, test_loader = load_mnist(batch_size=args.batch_size)
 
-elif args.data == 'dSprites':
+elif args.data.lower() == 'dsprites':
     from dsprites import load_dsprites, models
     img_size = 64
     VAE_model = models[args.model_name]
@@ -52,6 +54,9 @@ elif args.data == 'dSprites':
                                     batch_size=args.batch_size)
 else:
     raise Exception('Dataset not found. Try: MNIST, dSprites')
+
+print('Total training datapoints:', len(train_loader.sampler))
+print('Total testing datapoints:', len(test_loader.sampler))
 
 #
 # model + optimizer + learning rate
@@ -63,14 +68,24 @@ optimizer = optim.Adam(model.parameters(), lr=1e-3)
 # scheduler = optim.lr_scheduler.ReduceLROnPlateau(optimizer,
 #                             mode='min', factor=0.1, patience=2,
 #                             verbose=True)
-scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.97)
+scheduler = optim.lr_scheduler.ExponentialLR(optimizer, gamma=0.98)
 loss_function = VAE_model.loss_function
 
 print(f'Total parameters: {model.total_parameters}\n')
 
 # plots
-train_losses = []
-test_losses = []
+if args.tensorboard:
+    writer = SummaryWriter()
+else:
+    loss_plot = LossPlot(epochs=args.epochs,
+                         data_len=len(train_loader.sampler),
+                         batch_size=args.batch_size,
+                         plot_interval=50,
+                         dir=dirName)
+
+
+# train_losses = []
+# test_losses = []
 # fig, ax = plt.subplots(1,1,figsize=(12,8))
 
 def train(epoch):
@@ -86,9 +101,16 @@ def train(epoch):
         loss.backward()
         # save
         running_loss += loss.item()
-        train_losses.append(loss.item())
+        # train_losses.append(loss.item())
         # update weights
         optimizer.step()
+        # plot
+        if args.tensorboard:
+            writer.add_scalars('train_data',
+                               {'loss': loss.item()/args.batch_size},
+                               batch_idx*epoch)
+        else:
+            loss_plot.add_item(loss.item()/args.batch_size)
 
         if batch_idx % args.log_interval == 0 and batch_idx != 0:
             print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
@@ -99,7 +121,7 @@ def train(epoch):
     # update learning rate
     scheduler.step()
     # print
-    avg_loss = running_loss / len(train_loader.dataset)
+    avg_loss = running_loss / len(train_loader.sampler)
     print(f'====> Epoch: {epoch} Average loss: {avg_loss:.4f}')
 
 
@@ -112,7 +134,7 @@ def test(epoch):
             recon_batch, mu, logvar = model(data)
             loss = loss_function(recon_batch, data, mu, logvar, beta=args.beta)
             test_loss += loss.item()
-            test_losses.append(loss.item())
+            # test_losses.append(loss.item())
             if i == 0:
                 n = min(data.size(0), 8)
                 recon_batch = recon_batch.view(args.batch_size, 1, img_size, img_size)
@@ -120,7 +142,15 @@ def test(epoch):
                 save_image(comparison.cpu(),
                          f'{dirName}/reconstruction_{str(epoch)}.png', nrow=n)
 
-    test_loss /= len(test_loader.dataset)
+    test_loss /= len(test_loader.sampler)
+    # plot
+    if args.tensorboard:
+        writer.add_scalars('test_data',
+                           {'loss': test_loss},
+                           epoch*len(train_loader))
+    else:
+        loss_plot.add_test_item(test_loss)
+
     print(f'====> Test set loss: {test_loss:.4f}')
 
 
