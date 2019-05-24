@@ -18,10 +18,10 @@ def load_checkpoint(filepath):
     model.eval()
     return model
 
-dir = 'results_super_resolution_zdim-6_beta-5'
+dirName = 'results_super_resolution_zdim-6_beta-5'
 parent_dir = os.path.join(os.path.dirname(__file__), '..')
 model_name = 'super_resolution_model'
-model = load_checkpoint(f'{dir}/{model_name}.pth')
+model = load_checkpoint(f'{dirName}/{model_name}.pth')
 
 dims = 6
 nums = 11
@@ -35,5 +35,5 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 z = torch.tensor(z).view(dims*nums, z.shape[-1]).to(device)
 sample = model.decode(z).cpu()
 save_image(sample.view(dims*nums, 1, 64, 64),
-           f'{dir}/sample_latent_space.png',
+           f'{dirName}/sample_latent_space.png',
            nrow=nums)
