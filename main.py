@@ -177,3 +177,19 @@ checkpoint = {'model': model,
 model_out_path = f"{dirName}/{args.model_name}_model.pth"
 torch.save(checkpoint, model_out_path)
 print(f"Model saved to {model_out_path}")
+
+#
+# Sample latent space
+#
+nums = 11
+x_range = np.linspace(-3,3,nums)
+z = np.zeros((args.z_dim, nums, args.z_dim), dtype=np.float32)
+for dim in range(args.z_dim):
+    z[dim, :, dim] = x_range
+
+z = torch.tensor(z).view(args.z_dim*nums, z.shape[-1]).to(device)
+sample = model.decode(z).cpu()
+save_image(sample.view(args.z_dim*nums, 1, img_size, img_size),
+           f'{dirName}/sample_latent_space.png',
+           nrow=nums)
+print(f"Latent space sampled")

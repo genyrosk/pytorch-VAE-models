@@ -1,10 +1,12 @@
 from __future__ import print_function, division
+import os
 import sys
 import numpy as np
 import torch
 from torch import nn
 from torch.nn import functional as F
 from torchvision.utils import save_image
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 
 def load_checkpoint(filepath):
     checkpoint = torch.load(filepath)
@@ -17,6 +19,7 @@ def load_checkpoint(filepath):
     return model
 
 dir = 'results_super_resolution_zdim-6_beta-5'
+parent_dir = os.path.join(os.path.dirname(__file__), '..')
 model_name = 'super_resolution_model'
 model = load_checkpoint(f'{dir}/{model_name}.pth')
 
